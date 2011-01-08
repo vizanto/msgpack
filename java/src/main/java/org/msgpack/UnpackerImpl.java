@@ -40,9 +40,12 @@ public class UnpackerImpl {
 	static final int CS_MAP_16      = 0x1e;
 	static final int CS_MAP_32      = 0x1f;
 	static final int ACS_RAW_VALUE  = 0x20;
+    static final int CS_VO_HEADER   = 0x21;
+    static final int CS_VO_FIELDS   = 0x22;
 	static final int CT_ARRAY_ITEM  = 0x00;
 	static final int CT_MAP_KEY     = 0x01;
 	static final int CT_MAP_VALUE   = 0x02;
+    static final int CT_VO_VALUES   = 0x03;
 
 	static final int MAX_STACK_SIZE = 32;
 
@@ -58,11 +61,33 @@ public class UnpackerImpl {
 	private ByteBuffer castBuffer   = ByteBuffer.allocate(8);
 	private boolean finished = false;
 	private MessagePackObject data = null;
+    private VOHelper voHelper = null;
+
+    public interface VOHelper {
+        VOInstance newObject();
+    }
+
+    public interface VOInstance {
+        void    prepareForType(int typeID);
+        void    incrementMixinCount(int mixins);
+        void    prepareForNext8Fields(byte flags);
+        void    putValue(Object value);
+        boolean fieldgroupRequiresMoreValues();
+        boolean mixinDataRemains();
+        void    nextMixin();
+
+        Object getData();
+    }
 
 	public UnpackerImpl()
 	{
 		reset();
 	}
+
+    public final void setVOHelper(VOHelper voHelper)
+    {
+        this.voHelper = voHelper;
+    }
 
 	public final MessagePackObject getData()
 	{
@@ -101,7 +126,7 @@ public class UnpackerImpl {
 		Object obj = null;
 
 		_out: do {
-		_header_again: {
+		_header_again_without_cs_reset: { _header_again: {
 			//System.out.println("while i:"+i+" limit:"+limit);
 
 			int b = src[i];
@@ -208,6 +233,19 @@ public class UnpackerImpl {
 						cs = b & 0x1f;
 						//System.out.println("b trail "+trail+"  cs:"+cs);
 						break _fixed_trail_again;
+                    case 0xd7:  // ValueObject
+                        System.out.println(top + " valueobject:start     | (push top)");
+                        ++top;
+                        stack_obj[top]    = top_obj;
+                        stack_ct[top]     = top_ct;
+                        stack_count[top]  = top_count;
+                        top_obj    = voHelper.newObject();
+                        top_ct     = -1;
+                        top_count  = -1;
+
+                        trail = 3; // of 2? header + typeID (max 2 bytes)
+                        cs = CS_VO_HEADER;
+                        break _fixed_trail_again;
 					default:
 						//System.out.println("unknown b "+(b&0xff));
 						throw new UnpackException("parse error");
@@ -399,6 +437,90 @@ public class UnpackerImpl {
 						top_ct     = CT_MAP_KEY;
 						top_count  = count;
 						break _header_again;
+
+                    case CS_VO_HEADER: {
+                        VOInstance vo = (VOInstance) top_obj;
+                        int header = src[n];
+                        count = header & 0x07; // property byte-flags count
+                        int mixinCount = (header & 0x38 /* 0b_0011_1000 */) >> 3;
+
+                        int typeID;
+                        if (0 == (header & 0x40)) { // single byte typeID
+                            --i; // go back one, as trail was guessed as 3
+                            typeID = ((src[n+1]) & 0xff);
+                        } else {
+                            castBuffer.rewind();
+                            castBuffer.put(src, n, 2);
+                            typeID = ((int)castBuffer.getShort(0)) & 0xffff;
+                        }
+                        System.out.println(top + " valueobject:header    | firstbyte = "+ header +
+                          ", mixins = "+ mixinCount +
+                          ", property-sets = "+ count +
+                          ", typeID = "+ typeID);
+
+                        vo.prepareForType(typeID);
+                        if (mixinCount > 0)
+                            vo.incrementMixinCount(mixinCount); // kan dus groter dan 7 worden (!) - dataRemains is true zolang mixinCount > 0
+
+                        if ((top_count = count) > 0) {
+                            cs = CS_VO_FIELDS;
+                            trail = 1;
+                            System.out.println(top + "   \\_ CS_VO_FIELDS     | count = " + count);
+                            break _fixed_trail_again;
+                        }
+                        // else if
+                        if (vo.mixinDataRemains()) {
+                            vo.nextMixin();
+                            System.out.println(top + "   \\_ -> mixin         | count = " + count + " trail = "+trail);
+                            trail = 3; //bytes: 1 header, 2 type id (of 1 type id + iets aan data)
+                            break _fixed_trail_again;
+                        }
+                        // else, object complete
+                        //POP stack
+                        System.out.println(top + "   \\_ -> pop stack     | vo done");
+                        top_obj    = stack_obj[top];
+                        top_ct     = stack_ct[top];
+                        top_count  = stack_count[top];
+                        stack_obj[top] = null;
+                        --top;
+                        obj = vo.getData();
+                        break _push;
+                    }
+                    case CS_VO_FIELDS: {
+                        System.out.println(top + " valueobject:fields");
+                        // lees byte (property groep van max 8 waardes)
+                        VOInstance vo = (VOInstance) top_obj;
+                        vo.prepareForNext8Fields(src[i]);
+                        if (src[i] != 0) {// && vo.fieldgroupRequiresMoreValues()) {
+                            top_ct = CT_VO_VALUES;
+                            break _header_again;
+                        }
+                        else if (--top_count == 0) // if 0: No more property groups for this type
+                        {
+                            System.out.println(top + "   \\_ -> no more field groups");
+                            if (!vo.mixinDataRemains()) {
+                                // else, object complete
+                                //POP stack
+                                System.out.println(top + "   \\_ -> pop stack     | vo done");
+                                top_obj    = stack_obj[top];
+                                top_ct     = stack_ct[top];
+                                top_count  = stack_count[top];
+                                stack_obj[top] = null;
+                                --top;
+                                obj = vo.getData();
+                                break _push;
+                            }
+                            // else
+
+                            //FIXME: code not covered by unit test
+                            vo.nextMixin();
+                            cs = CS_VO_HEADER; // process next mixin
+                            trail = 2; // Since there is no VO MsgPack header, only 1 trailing byte ?
+                            //-- FIXME
+                        }
+                        break _fixed_trail_again;
+                    }
+
 					default:
 						throw new UnpackException("parse error");
 					}
@@ -456,15 +578,51 @@ public class UnpackerImpl {
 						top_ct = CT_MAP_KEY;
 						break _header_again;
 					}
+                case CT_VO_VALUES: {
+                        System.out.println(top + " valueobject:values");
+                        VOInstance vo = (VOInstance) top_obj;
+                        vo.putValue(obj);
+
+                        if (vo.fieldgroupRequiresMoreValues()) {
+                            System.out.println(top + "   \\_ -> CT_VO_VALUES -> requires more values");
+                            break _header_again;
+                        }
+                        // else
+                        if (--top_count == 0)
+                        {
+                            System.out.println(top + "   \\_ -> no more field groups");
+                            if (vo.mixinDataRemains()) {
+                                vo.nextMixin();
+                                trail = 3;
+                                cs = CS_VO_HEADER; // process next mixin
+                                break _header_again_without_cs_reset;
+                            }
+                            // else, value-object complete, POP stack
+                            System.out.println(top + "   \\_ -> pop stack     | vo done");
+                            top_obj    = stack_obj[top];
+                            top_ct     = stack_ct[top];
+                            top_count  = stack_count[top];
+                            stack_obj[top] = null;
+                            --top;
+                            obj = vo.getData();
+                            break _push;
+                        }
+                        // else next set of properties
+                        System.out.println(top + "   \\_ -> CT_VO_VALUES -> next set of properties");
+                        trail = 1;
+                        cs = CS_VO_FIELDS;
+                        break _header_again_without_cs_reset;
+                    }
 				default:
 					throw new UnpackException("parse error");
 				}
 			}  // _push
 			} while(true);
 
-		}  // _header_again
-		cs = CS_HEADER;
-		++i;
+        }  // _header_again
+        cs  = CS_HEADER;
+        ++i;
+        } // _header_again_without_cs_reset
 		} while(i < limit);  // _out
 
 		return i;
