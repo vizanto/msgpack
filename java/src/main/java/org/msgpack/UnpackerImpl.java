@@ -234,7 +234,7 @@ public class UnpackerImpl {
 						//System.out.println("b trail "+trail+"  cs:"+cs);
 						break _fixed_trail_again;
                     case 0xd7:  // ValueObject
-                        System.out.println(top + " valueobject:start     | (push top)");
+                        //System.out.println(top + " valueobject:start     | (push top)");
                         ++top;
                         stack_obj[top]    = top_obj;
                         stack_ct[top]     = top_ct;
@@ -453,11 +453,11 @@ public class UnpackerImpl {
                             castBuffer.put(src, n, 2);
                             typeID = ((int)castBuffer.getShort(0)) & 0xffff;
                         }
-                        System.out.println(top + " valueobject:header    | firstbyte = "+ header +
+                        /*System.out.println(top + " valueobject:header    | firstbyte = "+ header +
                           ", mixins = "+ mixinCount +
                           ", property-sets = "+ count +
                           ", typeID = "+ typeID);
-
+                        */
                         vo.prepareForType(typeID);
                         if (mixinCount > 0)
                             vo.incrementMixinCount(mixinCount); // kan dus groter dan 7 worden (!) - dataRemains is true zolang mixinCount > 0
@@ -465,19 +465,18 @@ public class UnpackerImpl {
                         if ((top_count = count) > 0) {
                             cs = CS_VO_FIELDS;
                             trail = 1;
-                            System.out.println(top + "   \\_ CS_VO_FIELDS     | count = " + count);
+                            //System.out.println(top + "   \\_ CS_VO_FIELDS     | count = " + count);
                             break _fixed_trail_again;
                         }
                         // else if
                         if (vo.mixinDataRemains()) {
                             vo.nextMixin();
-                            System.out.println(top + "   \\_ -> mixin         | count = " + count + " trail = "+trail);
+                            //System.out.println(top + "   \\_ -> mixin         | count = " + count + " trail = "+trail);
                             trail = 3; //bytes: 1 header, 2 type id (of 1 type id + iets aan data)
                             break _fixed_trail_again;
                         }
                         // else, object complete
-                        //POP stack
-                        System.out.println(top + "   \\_ -> pop stack     | vo done");
+                        //System.out.println(top + "   \\_ -> pop stack     | vo done");
                         top_obj    = stack_obj[top];
                         top_ct     = stack_ct[top];
                         top_count  = stack_count[top];
@@ -487,7 +486,7 @@ public class UnpackerImpl {
                         break _push;
                     }
                     case CS_VO_FIELDS: {
-                        System.out.println(top + " valueobject:fields");
+                        //System.out.println(top + " valueobject:fields");
                         // lees byte (property groep van max 8 waardes)
                         VOInstance vo = (VOInstance) top_obj;
                         vo.prepareForNext8Fields(src[i]);
@@ -497,11 +496,10 @@ public class UnpackerImpl {
                         }
                         else if (--top_count == 0) // if 0: No more property groups for this type
                         {
-                            System.out.println(top + "   \\_ -> no more field groups");
+                            //System.out.println(top + "   \\_ -> no more field groups");
                             if (!vo.mixinDataRemains()) {
                                 // else, object complete
-                                //POP stack
-                                System.out.println(top + "   \\_ -> pop stack     | vo done");
+                                //System.out.println(top + "   \\_ -> pop stack     | vo done");
                                 top_obj    = stack_obj[top];
                                 top_ct     = stack_ct[top];
                                 top_count  = stack_count[top];
@@ -512,11 +510,9 @@ public class UnpackerImpl {
                             }
                             // else
 
-                            //FIXME: code not covered by unit test
                             vo.nextMixin();
                             cs = CS_VO_HEADER; // process next mixin
-                            trail = 2; // Since there is no VO MsgPack header, only 1 trailing byte ?
-                            //-- FIXME
+                            trail = 3; // Since there is no VO header + 2 typeID bytes
                         }
                         break _fixed_trail_again;
                     }
@@ -579,18 +575,18 @@ public class UnpackerImpl {
 						break _header_again;
 					}
                 case CT_VO_VALUES: {
-                        System.out.println(top + " valueobject:values");
+                        //System.out.println(top + " valueobject:values");
                         VOInstance vo = (VOInstance) top_obj;
                         vo.putValue(obj);
 
                         if (vo.fieldgroupRequiresMoreValues()) {
-                            System.out.println(top + "   \\_ -> CT_VO_VALUES -> requires more values");
+                            //System.out.println(top + "   \\_ -> CT_VO_VALUES -> requires more values");
                             break _header_again;
                         }
                         // else
                         if (--top_count == 0)
                         {
-                            System.out.println(top + "   \\_ -> no more field groups");
+                            //System.out.println(top + "   \\_ -> no more field groups");
                             if (vo.mixinDataRemains()) {
                                 vo.nextMixin();
                                 trail = 3;
@@ -598,7 +594,7 @@ public class UnpackerImpl {
                                 break _header_again_without_cs_reset;
                             }
                             // else, value-object complete, POP stack
-                            System.out.println(top + "   \\_ -> pop stack     | vo done");
+                            //System.out.println(top + "   \\_ -> pop stack     | vo done");
                             top_obj    = stack_obj[top];
                             top_ct     = stack_ct[top];
                             top_count  = stack_count[top];
@@ -608,7 +604,7 @@ public class UnpackerImpl {
                             break _push;
                         }
                         // else next set of properties
-                        System.out.println(top + "   \\_ -> CT_VO_VALUES -> next set of properties");
+                        //System.out.println(top + "   \\_ -> CT_VO_VALUES -> next set of properties");
                         trail = 1;
                         cs = CS_VO_FIELDS;
                         break _header_again_without_cs_reset;

@@ -15,6 +15,7 @@ import org.msgpack.object.RawType;
  */
 class TestVOHelper implements UnpackerImpl.VOHelper
 {
+    public int valuesPut = 0;
     public String vo;
     public boolean bool = true;
     public int fourty2 = 0;
@@ -40,7 +41,9 @@ class TestVOHelper implements UnpackerImpl.VOHelper
                 return;
             }
 
-            @Override public void putValue(Object value) {
+            @Override public void putValue(Object value)
+            {
+                ++valuesPut;
                 if (value instanceof RawType) {
                     vo = ((RawType) value).asString();
                 }

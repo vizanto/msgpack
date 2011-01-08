@@ -58,8 +58,25 @@ public class TestValueObjects extends TestCase
         unpacker.setVOHelper(mockVOHelper);
         unpacker.execute(bytes, 0, bytes.length);
 
+        assertEquals(3,     mockVOHelper.valuesPut);
         assertEquals(null,  mockVOHelper.vo);
         assertEquals(false, mockVOHelper.bool);
-        assertEquals(42, mockVOHelper.fourty2);
+        assertEquals(42,    mockVOHelper.fourty2);
+    }
+
+    @Test
+    public void testValueObjectImpl_mixins_only_empty_fields() throws UnpackException {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+
+        TestVOHelper mockVOHelper = new TestVOHelper();
+        //              | VO        | HEADER    |typeID 254 |HEADER     |typeID 253 |no-fields  |no-fields  |HEADER     |type Sized |no-fields
+        byte[] bytes = {(byte)0xD7, (byte)0x90, (byte)0xFE, (byte)0x82, (byte)0xFD, (byte)0x00, (byte)0x00, (byte)0x81, (byte)0x01, (byte)0x01};
+        //              -41         -112        -2          -126        -3          0           -128        -127        1           1
+
+        UnpackerImpl unpacker = new UnpackerImpl();
+        unpacker.setVOHelper(mockVOHelper);
+        unpacker.execute(bytes, 0, bytes.length);
+
+        assertEquals(0,  mockVOHelper.valuesPut);
     }
 }
