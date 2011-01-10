@@ -23,6 +23,7 @@ public class TestValueObjects extends TestCase
         unpacker.setVOHelper(mockVOHelper);
         unpacker.execute(bytes, 0, bytes.length);
 
+        assertEquals(2,     mockVOHelper.valuesPut);
         assertEquals("vo",  mockVOHelper.vo);
         assertEquals(false, mockVOHelper.bool);
     }
@@ -40,6 +41,7 @@ public class TestValueObjects extends TestCase
         unpacker.setVOHelper(mockVOHelper);
         unpacker.execute(bytes, 0, bytes.length);
 
+        assertEquals(3,     mockVOHelper.valuesPut);
         assertEquals("vo",  mockVOHelper.vo);
         assertEquals(false, mockVOHelper.bool);
         assertEquals(42, mockVOHelper.fourty2);
@@ -58,7 +60,7 @@ public class TestValueObjects extends TestCase
         unpacker.setVOHelper(mockVOHelper);
         unpacker.execute(bytes, 0, bytes.length);
 
-        assertEquals(3,     mockVOHelper.valuesPut);
+        assertEquals(2,     mockVOHelper.valuesPut);
         assertEquals(null,  mockVOHelper.vo);
         assertEquals(false, mockVOHelper.bool);
         assertEquals(42,    mockVOHelper.fourty2);

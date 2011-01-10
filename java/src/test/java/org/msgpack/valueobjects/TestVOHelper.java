@@ -23,16 +23,19 @@ class TestVOHelper implements UnpackerImpl.VOHelper
     public UnpackerImpl.VOInstance newObject() {
         return new UnpackerImpl.VOInstance() {
             int fields = 0;
-            int mixins = 0;
-            public void prepareForType(int typeID) {
+
+            // Custom value-type API
+            protected int processValueType(int typeID) {
+                return 0;
+            }
+            protected void putValue(byte[] bytes, int start) {
+            }
+
+            protected void prepareValueObject(int typeID) {
                 return;
             }
 
-            @Override public void incrementMixinCount(int mixins) {
-                this.mixins += mixins;
-            }
-
-            @Override public void prepareForNext8Fields(byte flags) {
+            protected void prepareForNext8Fields(byte flags) {
                 fields = 0;
                 for (int i = 0; i < 8; ++i) {
                     int bit = (flags & (1 << i));
@@ -41,7 +44,7 @@ class TestVOHelper implements UnpackerImpl.VOHelper
                 return;
             }
 
-            @Override public void putValue(Object value)
+            protected void putValue(Object value)
             {
                 ++valuesPut;
                 if (value instanceof RawType) {
@@ -56,19 +59,13 @@ class TestVOHelper implements UnpackerImpl.VOHelper
                 --fields;
             }
 
-            @Override public boolean fieldgroupRequiresMoreValues() {
+
+
+            protected boolean fieldgroupRequiresMoreValues() {
                 return fields != 0;
             }
 
-            @Override public boolean mixinDataRemains() {
-                return mixins != 0;
-            }
-
-            @Override public void nextMixin() {
-                --mixins;
-            }
-
-            @Override public MessagePackObject getData() {
+            public MessagePackObject getData() {
                 return null;
             }
         };

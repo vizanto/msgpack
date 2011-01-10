@@ -67,16 +67,31 @@ public class UnpackerImpl {
         VOInstance newObject();
     }
 
-    public interface VOInstance {
-        void    prepareForType(int typeID);
-        void    incrementMixinCount(int mixins);
-        void    prepareForNext8Fields(byte flags);
-        void    putValue(Object value);
-        boolean fieldgroupRequiresMoreValues();
-        boolean mixinDataRemains();
-        void    nextMixin();
+    abstract static public class VOInstance
+    {
+        int mixins = 0;
+        final boolean mixinDataRemains() {
+            return mixins != 0;
+        }
+        final void nextMixin() {
+            --mixins;
+        }
+        final void incrementMixinCount(int mixins) {
+            this.mixins += mixins;
+        }
 
-        Object getData();
+        // Custom value-type API
+        abstract protected int     processValueType(int typeID);
+        abstract protected void    putValue(byte[] bytes, int start);
+
+        // ValueObject builder API
+        abstract protected void    prepareValueObject(int typeID);
+        abstract protected void    prepareForNext8Fields(byte flags);
+        abstract protected void    putValue(Object value);
+        abstract protected boolean fieldgroupRequiresMoreValues();
+
+        // Resulting object
+        abstract public MessagePackObject getData();
     }
 
 	public UnpackerImpl()
@@ -441,8 +456,28 @@ public class UnpackerImpl {
                     case CS_VO_HEADER: {
                         VOInstance vo = (VOInstance) top_obj;
                         int header = src[n];
+
+                        if (header >= 0) // first (sign) bit not set
+                        {
+                            // Custom value type (not a value-object)
+                            count = vo.processValueType(header);
+					        if(limit - n <= count) {
+                                trail = count + 1;
+                                i = n - 1;
+                                break _out; // try again later when sufficient data is available
+                            }
+                            vo.putValue(src, n);
+                            //System.out.println(top + "   \\_ -> pop stack     | custom value done");
+                            top_obj    = stack_obj[top];
+                            top_ct     = stack_ct[top];
+                            top_count  = stack_count[top];
+                            stack_obj[top] = null;
+                            --top;
+                            obj = vo.getData();
+                            break _push;
+                        }
+
                         count = header & 0x07; // property byte-flags count
-                        int mixinCount = (header & 0x38 /* 0b_0011_1000 */) >> 3;
 
                         int typeID;
                         if (0 == (header & 0x40)) { // single byte typeID
@@ -458,13 +493,12 @@ public class UnpackerImpl {
                           ", property-sets = "+ count +
                           ", typeID = "+ typeID);
                         */
-                        vo.prepareForType(typeID);
-                        if (mixinCount > 0)
-                            vo.incrementMixinCount(mixinCount); // kan dus groter dan 7 worden (!) - dataRemains is true zolang mixinCount > 0
+                        vo.prepareValueObject(typeID);
+                        vo.incrementMixinCount((header & 0x38 /* 0b_0011_1000 */) >>> 3); // kan dus groter dan 7 worden (!) - dataRemains is true zolang mixinCount > 0
 
                         if ((top_count = count) > 0) {
-                            cs = CS_VO_FIELDS;
                             trail = 1;
+                            cs = CS_VO_FIELDS;
                             //System.out.println(top + "   \\_ CS_VO_FIELDS     | count = " + count);
                             break _fixed_trail_again;
                         }
@@ -511,8 +545,8 @@ public class UnpackerImpl {
                             // else
 
                             vo.nextMixin();
+                            trail = 3;
                             cs = CS_VO_HEADER; // process next mixin
-                            trail = 3; // Since there is no VO header + 2 typeID bytes
                         }
                         break _fixed_trail_again;
                     }
