@@ -67,7 +67,7 @@ public class UnpackerImpl {
         VOInstance newObject();
     }
 
-    abstract static public class VOInstance
+    static public abstract class VOInstance
     {
         int mixins = 0;
         final boolean mixinDataRemains() {
@@ -521,7 +521,7 @@ public class UnpackerImpl {
                     }
                     case CS_VO_FIELDS: {
                         //System.out.println(top + " valueobject:fields");
-                        // lees byte (property groep van max 8 waardes)
+                        // read 1 byte (field-group of max 8 values)
                         VOInstance vo = (VOInstance) top_obj;
                         vo.prepareForNext8Fields(src[i]);
                         if (src[i] != 0) {// && vo.fieldgroupRequiresMoreValues()) {

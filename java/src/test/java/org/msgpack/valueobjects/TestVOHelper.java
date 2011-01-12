@@ -1,18 +1,13 @@
 package org.msgpack.valueobjects;
 
+import org.junit.Ignore;
 import org.msgpack.MessagePackObject;
 import org.msgpack.UnpackerImpl;
 import org.msgpack.object.BooleanType;
 import org.msgpack.object.IntegerType;
 import org.msgpack.object.RawType;
 
-/**
- * Created by IntelliJ IDEA.
- * User: blue
- * Date: 08-01-11
- * Time: 02:02
- * To change this template use File | Settings | File Templates.
- */
+@Ignore
 class TestVOHelper implements UnpackerImpl.VOHelper
 {
     public int valuesPut = 0;

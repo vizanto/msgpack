@@ -188,6 +188,14 @@ public class Unpacker implements Iterable<MessagePackObject> {
 		this.stream = stream;
 	}
 
+    /**
+     * Sets the ValueObject factory/deserializer helper instance for the PrimeVC msgpack extensions.
+     * @param helper instance which returns VOInstances
+     */
+    public void setVOHelper(UnpackerImpl.VOHelper helper) {
+        this.impl.setVOHelper(helper);
+    }
+
 
 	/**
 	 * Fills the buffer with the specified buffer.
