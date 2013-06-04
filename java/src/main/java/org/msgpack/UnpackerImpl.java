@@ -466,6 +466,7 @@ public class UnpackerImpl {
                                 i = n - 1;
                                 break _out; // try again later when sufficient data is available
                             }
+                            i = n + count;
                             vo.putValue(src, n);
                             //System.out.println(top + "   \\_ -> pop stack     | custom value done");
                             top_obj    = stack_obj[top];
