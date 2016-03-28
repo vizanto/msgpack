@@ -486,7 +486,7 @@ public class UnpackerImpl {
                             typeID = ((src[n+1]) & 0xff);
                         } else {
                             castBuffer.rewind();
-                            castBuffer.put(src, n, 2);
+                            castBuffer.put(src, n+1, 2);
                             typeID = ((int)castBuffer.getShort(0)) & 0xffff;
                         }
                         /*System.out.println(top + " valueobject:header    | firstbyte = "+ header +
